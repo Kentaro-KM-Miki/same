@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -242,28 +242,19 @@
         function startGame() {
             gameState = "playing";
             resetGame();
-            canvas.requestPointerLock();
         }
 
         function showTitle() {
             gameState = "title";
-            document.exitPointerLock();
         }
 
-        document.addEventListener('pointerlockchange', () => {
-            if (document.pointerLockElement === canvas) {
-                document.addEventListener('mousemove', updateSharkPosition, false);
-            } else {
-                document.removeEventListener('mousemove', updateSharkPosition, false);
-            }
-        });
-
-        function updateSharkPosition(event) {
-            shark.y += event.movementY;
-
+        canvas.addEventListener('mousemove', event => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseY = event.clientY - rect.top;
+            shark.y = mouseY - shark.height / 2;
             if (shark.y < 0) shark.y = 0;
             if (shark.y > screenHeight - shark.height) shark.y = screenHeight - shark.height;
-        }
+        });
 
         canvas.addEventListener('click', event => {
             if (gameState === "playing" && attack.state === "ready") {
