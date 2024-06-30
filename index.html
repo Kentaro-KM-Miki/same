@@ -15,8 +15,8 @@
         font-family: Arial, sans-serif;
       }
       #gameArea {
-        width: 400px; /* Adjust the width here */
-        height: 300px; /* Adjust the height here */
+        width: 800px; /* Adjust the width here */
+        height: 600px; /* Adjust the height here */
         background-color: #ffffff;
         border: 2px solid #000; /* Add a border to the game area */
         position: relative;
@@ -239,7 +239,7 @@
 
       function movePlayer(e) {
         const rect = gameArea.getBoundingClientRect();
-        const y = e.clientY || (e.touches ? e.touches[0].clientY : null);
+        const y = e.clientY;
         if (y !== null) {
           playerPosition = Math.max(0, Math.min(gameArea.clientHeight - player.offsetHeight, y - rect.top));
         }
@@ -255,14 +255,6 @@
       }
 
       document.addEventListener("mousemove", movePlayer);
-      document.addEventListener(
-        "touchmove",
-        (e) => {
-          e.preventDefault();
-          movePlayer(e);
-        },
-        { passive: false }
-      );
 
       document.addEventListener("click", createAttack);
 
