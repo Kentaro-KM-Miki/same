@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shark vs Crawfish</title>
+    <style>
+        canvas {
+            display: block;
+            margin: auto;
+            background-color: white;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>
+        // 画像の読み込み
+        const sharkImg = new Image();
+        sharkImg.src = 'sakana.png';
+
+        const foodImg = new Image();
+        foodImg.src = 'food.png';
+
+        const crawfishImg = new Image();
+        crawfishImg.src = 'kani.png';
+
+        const bossImg = new Image();
+        bossImg.src = 'boss.png';
+
+        const attackImg = new Image();
+        attackImg.src = 'attack.png';
+
+        const titleImg = new Image();
+        titleImg.src = 'title.png';
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const screenWidth = canvas.width;
+        const screenHeight = canvas.height;
+
+        const shark = {
+            width: 100,
+            height: 60,
+            x: 10,
+            y: screenHeight / 2 - 30,
+            speed: 5
+        };
+
+        const foodSize = 30;
+        const crawfishSize = 60;
+        const bossSize = { width: 120, height: 80 };
+        const attackSize = { width: 50, height: 20 };
+
+        const attack = {
+            x: 0,
+            y: 0,
+            speed: 20,
+            state: "ready"
+        };
+
+        let foodList = [];
+        let crawfishList = [];
+        let score = 0;
+        let crawfishKills = 0;
+        let bossAppeared = false;
+        let bossHealth = 5;
+        let boss = { x: 0, y: 0, speed: 5 };
+        let gameState = "title"; // Possible states: "title", "playing", "gameOver", "levelUp"
+
+        function createFood() {
+            return {
+                x: screenWidth + Math.random() * 300,
+                y: Math.random() * (screenHeight - foodSize)
+            };
+        }
+
+        function fireAttack(x, y) {
+            attack.state = "fire";
+            attack.x = x;
+            attack.y = y;
+        }
+
+        function resetGame() {
+            score = 0;
+            crawfishKills = 0;
+            bossAppeared = false;
+            bossHealth = 5;
+            shark.y = screenHeight / 2 - 30;
+            attack.state = "ready";
+            foodList = [];
+            crawfishList = [];
+            for (let i = 0; i < 20; i++) {
+                foodList.push(createFood());
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, screenWidth, screenHeight);
+
+            if (gameState === "title") {
+                ctx.drawImage(titleImg, 0, 0, screenWidth, screenHeight);
+                canvas.addEventListener('click', startGame, { once: true });
+            } else if (gameState === "playing") {
+                ctx.drawImage(sharkImg, shark.x, shark.y, shark.width, shark.height);
+
+                foodList.forEach(food => {
+                    ctx.drawImage(foodImg, food.x, food.y, foodSize, foodSize);
+                    food.x -= 5;
+                    if (food.x < -foodSize) {
+                        foodList.splice(foodList.indexOf(food), 1);
+                        foodList.push(createFood());
+                    }
+                    if (shark.x < food.x + foodSize && shark.x + shark.width > food.x &&
+                        shark.y < food.y + foodSize && shark.y + shark.height > food.y) {
+                        foodList.splice(foodList.indexOf(food), 1);
+                        score++;
+                    }
+                });
+
+                ctx.font = '20px Arial';
+                ctx.fillStyle = 'black';
+                ctx.fillText('Food: ' + score, 10, 20);
+
+                if (score >= 20) {
+                    if (crawfishList.length === 0 && !bossAppeared) {
+                        for (let i = 0; i < 5; i++) {
+                            crawfishList.push({
+                                x: screenWidth + Math.random() * 300,
+                                y: Math.random() * (screenHeight - crawfishSize)
+                            });
+                        }
+                    }
+                    crawfishList.forEach(crawfish => {
+                        ctx.drawImage(crawfishImg, crawfish.x, crawfish.y, crawfishSize, 40);
+                        crawfish.x -= 3;
+                        if (crawfish.x < -crawfishSize) {
+                            crawfishList.splice(crawfishList.indexOf(crawfish), 1);
+                            crawfishList.push({
+                                x: screenWidth,
+                                y: Math.random() * (screenHeight - crawfishSize)
+                            });
+                        }
+                        if (shark.x < crawfish.x + crawfishSize && shark.x + shark.width > crawfish.x &&
+                            shark.y < crawfish.y + 40 && shark.y + shark.height > crawfish.y) {
+                            gameState = "gameOver";
+                            canvas.addEventListener('click', showTitle, { once: true });
+                        }
+                        if (attack.state === "fire") {
+                            if (attack.x < crawfish.x + crawfishSize && attack.x + attackSize.width > crawfish.x &&
+                                attack.y < crawfish.y + 40 && attack.y + attackSize.height > crawfish.y) {
+                                crawfishList.splice(crawfishList.indexOf(crawfish), 1);
+                                attack.state = "ready";
+                                crawfishKills++;
+                            }
+                        }
+                    });
+                }
+
+                ctx.fillText('Crawfish Kills: ' + crawfishKills, 10, 50);
+
+                if (crawfishKills >= 5 && !bossAppeared) {
+                    bossAppeared = true;
+                    boss.x = screenWidth;
+                    boss.y = Math.random() * (screenHeight - bossSize.height);
+                }
+
+                if (bossAppeared) {
+                    ctx.drawImage(bossImg, boss.x, boss.y, bossSize.width, bossSize.height);
+
+                    if (boss.x > screenWidth / 2) {
+                        boss.x -= boss.speed;
+                    } else {
+                        boss.y += Math.random() > 0.5 ? boss.speed * 2 : -boss.speed * 2;
+                        if (boss.y < 0) boss.y = 0;
+                        if (boss.y > screenHeight - bossSize.height) boss.y = screenHeight - bossSize.height;
+                    }
+
+                    if (boss.x > 0) {
+                        if (shark.x < boss.x + bossSize.width && shark.x + shark.width > boss.x &&
+                            shark.y < boss.y + bossSize.height && shark.y + shark.height > boss.y) {
+                            gameState = "gameOver";
+                            canvas.addEventListener('click', showTitle, { once: true });
+                        }
+
+                        if (attack.state === "fire") {
+                            if (attack.x < boss.x + bossSize.width && attack.x + attackSize.width > boss.x &&
+                                attack.y < boss.y + bossSize.height && attack.y + attackSize.height > boss.y) {
+                                bossHealth--;
+                                attack.state = "ready";
+                                if (bossHealth <= 0) {
+                                    gameState = "levelUp";
+                                    canvas.addEventListener('click', showTitle, { once: true });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (attack.state === "fire") {
+                    ctx.drawImage(attackImg, attack.x, attack.y, attackSize.width, attackSize.height);
+                    attack.x += attack.speed;
+                    if (attack.x > screenWidth) {
+                        attack.state = "ready";
+                    }
+                }
+            } else if (gameState === "levelUp") {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, screenWidth, screenHeight);
+                ctx.fillStyle = 'black';
+                ctx.font = '30px Arial';
+                ctx.fillText('Level Up! Click to return to title screen', screenWidth / 4, screenHeight / 2);
+            } else if (gameState === "gameOver") {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, screenWidth, screenHeight);
+                ctx.fillStyle = 'black';
+                ctx.font = '30px Arial';
+                ctx.fillText('Game Over! Click to return to title screen', screenWidth / 4, screenHeight / 2);
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        function startGame() {
+            gameState = "playing";
+            resetGame();
+        }
+
+        function showTitle() {
+            gameState = "title";
+        }
+
+        canvas.addEventListener('mousemove', event => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseY = event.clientY - rect.top;
+            shark.y = mouseY - shark.height / 2;
+            if (shark.y < 0) shark.y = 0;
+            if (shark.y > screenHeight - shark.height) shark.y = screenHeight - shark.height;
+        });
+
+        canvas.addEventListener('click', event => {
+            if (gameState === "playing" && attack.state === "ready") {
+                fireAttack(shark.x + shark.width, shark.y + shark.height / 2 - attackSize.height / 2);
+            }
+        });
+
+        for (let i = 0; i < 20; i++) {
+            foodList.push(createFood());
+        }
+
+        draw();
+    </script>
+</body>
+</html>
