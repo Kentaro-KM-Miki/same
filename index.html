@@ -1,273 +1,274 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shark vs Crawfish</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>シャークアタックゲーム</title>
     <style>
-        body {
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f0f0f0;
-            font-family: Arial, sans-serif;
-        }
-        #gameArea {
-            width: 300px;
-            height: 400px;
-            background-color: white;
-            position: relative;
-            overflow: hidden;
-            border: 2px solid black;
-        }
-        canvas {
-            display: block;
-        }
+      body {
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #ffffff;
+        font-family: Arial, sans-serif;
+      }
+      #gameArea {
+        width: 400px; /* Adjust the width here */
+        height: 300px; /* Adjust the height here */
+        background-color: #ffffff;
+        border: 2px solid #000; /* Add a border to the game area */
+        position: relative;
+        overflow: hidden;
+      }
+      .entity {
+        position: absolute;
+        background-size: contain; /* Preserve aspect ratio */
+        background-position: center;
+        background-repeat: no-repeat;
+      }
+      #player {
+        left: 20px;
+        width: 70px;
+        height: 50px;
+        background-image: url('sakana.png'); /* Replace with your shark image URL */
+      }
+      .food {
+        width: 40px;
+        height: 50px;
+        background-image: url('food.png'); /* Replace with your food image URL */
+      }
+      .crab {
+        width: 100px;
+        height: 40px;
+        background-image: url('kani.png'); /* Replace with your crab image URL */
+      }
+      .boss {
+        width: 100px;
+        height: 100px;
+        background-image: url('boss.png'); /* Replace with your boss image URL */
+      }
+      .attack {
+        width: 40px;
+        height: 40px;
+        background-image: url('attack.png'); /* Replace with your attack image URL */
+      }
+      #score {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: black;
+        font-size: 18px;
+      }
+      #gameOver {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-size: 24px;
+        flex-direction: column;
+      }
+      #restartButton {
+        margin-top: 20px;
+        padding: 10px 20px;
+        font-size: 18px;
+        cursor: pointer;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div id="gameArea">
-        <canvas id="gameCanvas" width="400" height="300"></canvas>
+      <div id="player" class="entity"></div>
+      <div id="score">えさ: 0, かに: 0</div>
+      <div id="gameOver">
+        ゲームオーバー
+        <button id="restartButton">リスタート</button>
+      </div>
     </div>
+
     <script>
-        // 画像の読み込み
-        const sharkImg = new Image();
-        sharkImg.src = 'sakana.png';
+      const gameArea = document.getElementById("gameArea");
+      const player = document.getElementById("player");
+      const scoreDisplay = document.getElementById("score");
+      const gameOverScreen = document.getElementById("gameOver");
+      const restartButton = document.getElementById("restartButton");
+      
+      let score = { food: 0, crabs: 0 };
+      let playerPosition = 200;
+      let entities = [];
+      let gameIsOver = false;
+      let stage = 'food'; // stages: 'food', 'crab', 'boss'
+      let foodCount = 0;
+      let crabCount = 0;
+      let bossHealth = 5;
+      let bossDirection = 1; // 1 for down, -1 for up
 
-        const foodImg = new Image();
-        foodImg.src = 'food.png';
+      function createEntity(type) {
+        const entity = document.createElement("div");
+        entity.className = `entity ${type}`;
+        entity.style.left = gameArea.clientWidth + "px";
+        entity.style.top = Math.random() * (gameArea.clientHeight - 50) + "px";
+        gameArea.appendChild(entity);
+        entities.push({ element: entity, type: type, speed: type === 'boss' ? 1 : Math.random() * 2 + 1, health: type === 'crab' ? 1 : type === 'boss' ? 5 : 0 });
+      }
 
-        const crawfishImg = new Image();
-        crawfishImg.src = 'kani.png';
+      function checkCollision(entityLeft, entityTop, entityWidth, entityHeight, otherLeft, otherTop, otherWidth, otherHeight) {
+        return (
+          entityLeft < otherLeft + otherWidth &&
+          entityLeft + entityWidth > otherLeft &&
+          entityTop < otherTop + otherHeight &&
+          entityTop + entityHeight > otherTop
+        );
+      }
 
-        
-        const bossImg = new Image();
-        bossImg.src = 'boss.png';
+      function updateGame() {
+        if (gameIsOver) return;
 
-        const attackImg = new Image();
-        attackImg.src = 'attack.png';
+        let entitiesToRemove = [];
 
-        const titleImg = new Image();
-        titleImg.src = 'title.png';
+        entities.forEach((entity, index) => {
+          const left = parseFloat(entity.element.style.left);
+          const top = parseFloat(entity.element.style.top);
 
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-
-        const screenWidth = canvas.width;
-        const screenHeight = canvas.height;
-
-        const shark = {
-            width: 100,
-            height: 60,
-            x: 10,
-            y: screenHeight / 2 - 30,
-            speed: 5
-        };
-
-        const foodSize = 30;
-        const crawfishSize = 60;
-        const bossSize = { width: 120, height: 80 };
-        const attackSize = { width: 50, height: 20 };
-
-        const attack = {
-            x: 0,
-            y: 0,
-            speed: 20,
-            state: "ready"
-        };
-
-        let foodList = [];
-        let crawfishList = [];
-        let score = 0;
-        let crawfishKills = 0;
-        let bossAppeared = false;
-        let bossHealth = 5;
-        let boss = { x: 0, y: 0, speed: 5 };
-        let gameState = "title"; // Possible states: "title", "playing", "gameOver", "levelUp"
-
-        function createFood() {
-            return {
-                x: screenWidth + Math.random() * 300,
-                y: Math.random() * (screenHeight - foodSize)
-            };
-        }
-
-        function fireAttack(x, y) {
-            attack.state = "fire";
-            attack.x = x;
-            attack.y = y;
-        }
-
-        function resetGame() {
-            score = 0;
-            crawfishKills = 0;
-            bossAppeared = false;
-            bossHealth = 5;
-            shark.y = screenHeight / 2 - 30;
-            attack.state = "ready";
-            foodList = [];
-            crawfishList = [];
-            for (let i = 0; i < 20; i++) {
-                foodList.push(createFood());
+          if (entity.type === 'attack') {
+            entity.element.style.left = left + entity.speed + "px";
+          } else if (entity.type === 'boss' && left <= gameArea.clientWidth / 2) {
+            entity.element.style.top = top + bossDirection * entity.speed + "px";
+            if (top <= 0 || top >= gameArea.clientHeight - entity.element.offsetHeight) {
+              bossDirection *= -1;
             }
-        }
+          } else {
+            entity.element.style.left = left - entity.speed + "px";
+          }
 
-        function draw() {
-            ctx.clearRect(0, 0, screenWidth, screenHeight);
+          if (left < -30 || left > gameArea.clientWidth + 30) {
+            entitiesToRemove.push(index);
+            return;
+          }
 
-            if (gameState === "title") {
-                ctx.drawImage(titleImg, 0, 0, screenWidth, screenHeight);
-                canvas.addEventListener('click', startGame, { once: true });
-            } else if (gameState === "playing") {
-                ctx.drawImage(sharkImg, shark.x, shark.y, shark.width, shark.height);
-
-                foodList.forEach(food => {
-                    ctx.drawImage(foodImg, food.x, food.y, foodSize, foodSize);
-                    food.x -= 5;
-                    if (food.x < -foodSize) {
-                        foodList.splice(foodList.indexOf(food), 1);
-                        foodList.push(createFood());
+          entities.forEach((otherEntity, otherIndex) => {
+            if (entity !== otherEntity && entity.type === 'attack' && (otherEntity.type === 'crab' || otherEntity.type === 'boss')) {
+              const otherLeft = parseFloat(otherEntity.element.style.left);
+              const otherTop = parseFloat(otherEntity.element.style.top);
+              if (checkCollision(left, top, entity.element.offsetWidth, entity.element.offsetHeight, otherLeft, otherTop, otherEntity.element.offsetWidth, otherEntity.element.offsetHeight)) {
+                otherEntity.health--;
+                entitiesToRemove.push(index);
+                if (otherEntity.health <= 0) {
+                  entitiesToRemove.push(otherIndex);
+                  if (otherEntity.type === 'crab') {
+                    crabCount++;
+                    score.crabs = crabCount;
+                    if (crabCount >= 5) {
+                      stage = 'boss';
+                      crabCount = 0;
                     }
-                    if (shark.x < food.x + foodSize && shark.x + shark.width > food.x &&
-                        shark.y < food.y + foodSize && shark.y + shark.height > food.y) {
-                        foodList.splice(foodList.indexOf(food), 1);
-                        score++;
-                    }
-                });
-
-                ctx.font = '20px Arial';
-                ctx.fillStyle = 'black';
-                ctx.fillText('Food: ' + score, 10, 20);
-
-                if (score >= 20) {
-                    if (crawfishList.length === 0 && !bossAppeared) {
-                        for (let i = 0; i < 5; i++) {
-                            crawfishList.push({
-                                x: screenWidth + Math.random() * 300,
-                                y: Math.random() * (screenHeight - crawfishSize)
-                            });
-                        }
-                    }
-                    crawfishList.forEach(crawfish => {
-                        ctx.drawImage(crawfishImg, crawfish.x, crawfish.y, crawfishSize, 40);
-                        crawfish.x -= 3;
-                        if (crawfish.x < -crawfishSize) {
-                            crawfishList.splice(crawfishList.indexOf(crawfish), 1);
-                            crawfishList.push({
-                                x: screenWidth,
-                                y: Math.random() * (screenHeight - crawfishSize)
-                            });
-                        }
-                        if (shark.x < crawfish.x + crawfishSize && shark.x + shark.width > crawfish.x &&
-                            shark.y < crawfish.y + 40 && shark.y + shark.height > crawfish.y) {
-                            gameState = "gameOver";
-                            canvas.addEventListener('click', showTitle, { once: true });
-                        }
-                        if (attack.state === "fire") {
-                            if (attack.x < crawfish.x + crawfishSize && attack.x + attackSize.width > crawfish.x &&
-                                attack.y < crawfish.y + 40 && attack.y + attackSize.height > crawfish.y) {
-                                crawfishList.splice(crawfishList.indexOf(crawfish), 1);
-                                attack.state = "ready";
-                                crawfishKills++;
-                            }
-                        }
-                    });
+                  } else if (otherEntity.type === 'boss') {
+                    score.crabs += 5; // Add extra points for defeating the boss
+                    endGame();
+                  }
+                  updateScore();
                 }
-
-                ctx.fillText('Crawfish Kills: ' + crawfishKills, 10, 50);
-
-                if (crawfishKills >= 5 && !bossAppeared) {
-                    bossAppeared = true;
-                    boss.x = screenWidth;
-                    boss.y = Math.random() * (screenHeight - bossSize.height);
-                }
-
-                if (bossAppeared) {
-                    ctx.drawImage(bossImg, boss.x, boss.y, bossSize.width, bossSize.height);
-
-                    if (boss.x > screenWidth / 2) {
-                        boss.x -= boss.speed;
-                    } else {
-                        boss.y += Math.random() > 0.5 ? boss.speed * 2 : -boss.speed * 2;
-                        if (boss.y < 0) boss.y = 0;
-                        if (boss.y > screenHeight - bossSize.height) boss.y = screenHeight - bossSize.height;
-                    }
-
-                    if (boss.x > 0) {
-                        if (shark.x < boss.x + bossSize.width && shark.x + shark.width > boss.x &&
-                            shark.y < boss.y + bossSize.height && shark.y + shark.height > boss.y) {
-                            gameState = "gameOver";
-                            canvas.addEventListener('click', showTitle, { once: true });
-                        }
-
-                        if (attack.state === "fire") {
-                            if (attack.x < boss.x + bossSize.width && attack.x + attackSize.width > boss.x &&
-                                attack.y < boss.y + bossSize.height && attack.y + attackSize.height > boss.y) {
-                                bossHealth--;
-                                attack.state = "ready";
-                                if (bossHealth <= 0) {
-                                    gameState = "levelUp";
-                                    canvas.addEventListener('click', showTitle, { once: true });
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (attack.state === "fire") {
-                    ctx.drawImage(attackImg, attack.x, attack.y, attackSize.width, attackSize.height);
-                    attack.x += attack.speed;
-                    if (attack.x > screenWidth) {
-                        attack.state = "ready";
-                    }
-                }
-            } else if (gameState === "levelUp") {
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, screenWidth, screenHeight);
-                ctx.fillStyle = 'black';
-                ctx.font = '30px Arial';
-                ctx.fillText('Level Up! Click to return to title screen', screenWidth / 4, screenHeight / 2);
-            } else if (gameState === "gameOver") {
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, screenWidth, screenHeight);
-                ctx.fillStyle = 'black';
-                ctx.font = '30px Arial';
-                ctx.fillText('Game Over! Click to return to title screen', screenWidth / 4, screenHeight / 2);
+                return;
+              }
             }
+          });
 
-            requestAnimationFrame(draw);
-        }
-
-        function startGame() {
-            gameState = "playing";
-            resetGame();
-        }
-
-        function showTitle() {
-            gameState = "title";
-        }
-
-        canvas.addEventListener('mousemove', event => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseY = event.clientY - rect.top;
-            shark.y = mouseY - shark.height / 2;
-            if (shark.y < 0) shark.y = 0;
-            if (shark.y > screenHeight - shark.height) shark.y = screenHeight - shark.height;
+          if (entity.type !== 'attack' && checkCollision(left, top, entity.element.offsetWidth, entity.element.offsetHeight, player.offsetLeft, player.offsetTop, player.offsetWidth, player.offsetHeight)) {
+            if (entity.type === 'food') {
+              foodCount++;
+              score.food = foodCount;
+              if (foodCount >= 10) {
+                stage = 'crab';
+                foodCount = 0;
+              }
+            } else if (entity.type === 'crab' || entity.type === 'boss') {
+              endGame();
+            }
+            entitiesToRemove.push(index);
+            updateScore();
+          }
         });
 
-        canvas.addEventListener('click', event => {
-            if (gameState === "playing" && attack.state === "ready") {
-                fireAttack(shark.x + shark.width, shark.y + shark.height / 2 - attackSize.height / 2);
-            }
+        entitiesToRemove.forEach(index => {
+          gameArea.removeChild(entities[index].element);
+          entities.splice(index, 1);
         });
 
-        for (let i = 0; i < 20; i++) {
-            foodList.push(createFood());
+        if (stage === 'food' && Math.random() < 0.02) {
+          createEntity('food');
+        } else if (stage === 'crab' && Math.random() < 0.02) {
+          createEntity('crab');
+        } else if (stage === 'boss' && entities.length === 0) {
+          createEntity('boss');
         }
 
-        draw();
+        player.style.top = playerPosition + "px";
+      }
+
+      function updateScore() {
+        scoreDisplay.textContent = `えさ: ${score.food}, かに: ${score.crabs}`;
+      }
+
+      function endGame() {
+        gameIsOver = true;
+        gameOverScreen.style.display = "flex";
+      }
+
+      function restartGame() {
+        gameIsOver = false;
+        score = { food: 0, crabs: 0 };
+        playerPosition = 200;
+        entities.forEach((entity) => gameArea.removeChild(entity.element));
+        entities = [];
+        gameOverScreen.style.display = "none";
+        player.style.top = "200px";
+        stage = 'food';
+        foodCount = 0;
+        crabCount = 0;
+        bossHealth = 5;
+        bossDirection = 1;
+        updateScore();
+      }
+
+      function movePlayer(e) {
+        const rect = gameArea.getBoundingClientRect();
+        const y = e.clientY || (e.touches ? e.touches[0].clientY : null);
+        if (y !== null) {
+          playerPosition = Math.max(0, Math.min(gameArea.clientHeight - player.offsetHeight, y - rect.top));
+        }
+      }
+
+      function createAttack() {
+        const attack = document.createElement("div");
+        attack.className = "entity attack";
+        attack.style.left = "70px";
+        attack.style.top = (playerPosition + 15) + "px"; // Centering attack to player
+        gameArea.appendChild(attack);
+        entities.push({ element: attack, type: 'attack', speed: 5 });
+      }
+
+      document.addEventListener("mousemove", movePlayer);
+      document.addEventListener(
+        "touchmove",
+        (e) => {
+          e.preventDefault();
+          movePlayer(e);
+        },
+        { passive: false }
+      );
+
+      document.addEventListener("click", createAttack);
+
+      restartButton.addEventListener("click", restartGame);
+
+      setInterval(updateGame, 20);
     </script>
-</body>
+  </body>
 </html>
